@@ -43,7 +43,7 @@ jobs:
             # Convert updated files into JSON format for matrix
             JSON_ARRAY=$(echo "$UPDATED_FILES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
 
-            echo "::set-output name=matrix::$JSON_ARRAY"
+            echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
           fi
 
   build-and-push:
@@ -52,7 +52,7 @@ jobs:
     if: needs.detect-updates.outputs.matrix != '[]'
     strategy:
       matrix:
-        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix) }}
+        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
 
     steps:
       - name: Checkout code
