@@ -32,7 +32,7 @@ jobs:
 
           echo "Comparing changes between $BEFORE_COMMIT and $CURRENT_COMMIT"
 
-          UPDATED_FILES=$(git diff --name-only "$BEFORE_COMMIT" "$CURRENT_COMMIT" | grep "${{ inputs.paths }}" || true)
+          UPDATED_FILES=$(git diff --name-only "$BEFORE_COMMIT" "$CURRENT_COMMIT" | grep "docker-config-.*\.yaml" || true)
 
           if [[ -z "$UPDATED_FILES" ]]; then
             echo "No docker-config files changed. Setting empty matrix."
