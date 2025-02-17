@@ -99,15 +99,10 @@ jobs:
           echo "✅ Successfully built: $IMAGE_TAG"
 
       - name: Run Trivy Vulnerability Scan
-        if: success() && needs.detect-configs.outputs.matrix != '[]'
+        id: scan
+        if: success()
         run: |
-          CONFIG_FILE="${{ fromJson(needs.detect-configs.outputs.matrix)[0] }}"
-          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-
-          IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-          echo "Running Trivy scan on $IMAGE_TAG..."
+          echo "🔍 Running Trivy scan on $IMAGE_TAG..."
           trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
 
   
