@@ -98,3 +98,8 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
 
           echo "✅ Successfully built: $IMAGE_TAG"
+      - name: Run Trivy Vulnerability Scan
+        id: trivy-scan
+        run: |
+          echo "🔍 Running Trivy scan on $IMAGE_TAG..."
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL "$account_name/$ecr_repo_name:$docker_image_tag"
