@@ -98,84 +98,16 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
           echo "✅ Successfully built: $IMAGE_TAG"
 
-      - name: Set Output Matrix for Scan Job
+      - name: Run Trivy Vulnerability Scan
+        if: success() && needs.detect-configs.outputs.matrix != '[]'
         run: |
-          # Ensure the matrix for the scan job is set properly
-          UPDATED_FILES="${{ toJson(matrix.config_file) }}"
-          echo "matrix=$UPDATED_FILES" >> $GITHUB_OUTPUT
-
-  scan:
-    needs: [detect-updates, build]
-    runs-on: self-hosted
-    if: success() && needs.build.outputs.matrix != '[]'
-    strategy:
-      matrix:
-        config_file: ${{ fromJson(needs.build.outputs.matrix || '[]') }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Debug Matrix Value
-        run: |
-          echo "Matrix value for scan: ${{ needs.build.outputs.matrix }}"
-
-      - name: Extract Variables from Config File
-        id: extract-vars
-        run: |
-          CONFIG_FILE="${{ matrix.config_file }}"
-          echo "Processing $CONFIG_FILE..."
-
+          CONFIG_FILE="${{ fromJson(needs.detect-configs.outputs.matrix)[0] }}"
           ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
           docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
           account_name=$(yq eval '.account_name' "$CONFIG_FILE")
 
-          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "account_name=$account_name" >> $GITHUB_ENV
-
-      - name: Run Trivy Vulnerability Scan
-        id: trivy-scan
-        run: |
           IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-          echo "🔍 Running Trivy scan on $IMAGE_TAG..."
-          trivy image \
-            --format table \
-            --exit-code 1 \
-            --ignore-unfixed \
-            --pkg-types os,library \
-            --severity HIGH,CRITICAL \
-            "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
-  # push:
-  #   needs: scan
-  #   runs-on: self-hosted
-  #   if: success() && needs.scan.outputs.matrix != '[]'
-  #   strategy:
-  #     matrix:
-  #       config_file: ${{ fromJson(needs.scan.outputs.matrix || '[]') }}
-    
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v3
+          echo "Running Trivy scan on $IMAGE_TAG..."
+          trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
 
-  #     - name: Extract Variables from Config File
-  #       id: extract-vars
-  #       run: |
-  #         CONFIG_FILE="${{ matrix.config_file }}"
-  #         echo "Processing $CONFIG_FILE..."
-
-  #         ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-  #         docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-  #         account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-
-  #         echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-  #         echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-  #         echo "account_name=$account_name" >> $GITHUB_ENV
-
-  #     - name: Push Docker Image to ECR
-  #       run: |
-  #         IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-  #         echo "🚀 Pushing Docker image: $IMAGE_TAG"
-  #         docker push "$IMAGE_TAG"
-
-  #         echo "✅ Successfully pushed: $IMAGE_TAG"
+  
