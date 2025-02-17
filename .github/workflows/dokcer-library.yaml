@@ -102,10 +102,10 @@ jobs:
         id: trivy-scan
         run: |
           echo "🔍 Running Trivy scan on $IMAGE_TAG..."
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
-            --format table \  # ✅ Outputs results in tabular format
-            --exit-code 1 \   # ✅ Fails the pipeline if HIGH/CRITICAL vulnerabilities exist
-            --ignore-unfixed \  # ✅ Ignores vulnerabilities with no fix available
-            --pkg-types os,library \  # ✅ Scans both OS-level and application dependencies
+          trivy image \
+            --format table \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --pkg-types os,library \
             --severity HIGH,CRITICAL \
-            "$account_name/$ecr_repo_name:$docker_image_tag" | tee trivy-results-${docker_image_tag}.txt
+            "$account_name/$ecr_repo_name:$docker_image_tag" | tee trivy-results-${{ env.docker_image_tag }}.txt
