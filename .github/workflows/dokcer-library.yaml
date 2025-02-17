@@ -1,4 +1,4 @@
-name: Build and Push Docker Images (Reusable)
+name: Build, Scan, and Push Docker Images (Reusable)
 
 on:
   workflow_call:
@@ -13,6 +13,10 @@ on:
         required: false
         type: string
         default: "docker-config-*.yaml"
+      environment:
+        description: "Environment (Dev, QA, Prod)"
+        required: true
+        type: string
 
 jobs:
   detect-updates:
@@ -40,20 +44,18 @@ jobs:
           else
             echo "Updated files: $UPDATED_FILES"
 
-            # Convert updated files into JSON format for matrix
             JSON_ARRAY=$(echo "$UPDATED_FILES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
 
             echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
-          fi
 
-  build-and-push:
+  build:
     needs: detect-updates
     runs-on: self-hosted
     if: needs.detect-updates.outputs.matrix != '[]'
     strategy:
       matrix:
         config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -90,7 +92,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build and Push Docker Image
+      - name: Build Docker Image
         run: |
           IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
 
@@ -98,9 +100,37 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
 
           echo "✅ Successfully built: $IMAGE_TAG"
+
+  scan:
+    needs: build
+    runs-on: self-hosted
+    if: success() && needs.build.outputs.matrix != '[]'
+    strategy:
+      matrix:
+        config_file: ${{ fromJson(needs.build.outputs.matrix || '[]') }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Extract Variables from Config File
+        id: extract-vars
+        run: |
+          CONFIG_FILE="${{ matrix.config_file }}"
+          echo "Processing $CONFIG_FILE..."
+
+          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
+          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
+          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
+
+          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
+          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
+          echo "account_name=$account_name" >> $GITHUB_ENV
+
       - name: Run Trivy Vulnerability Scan
         id: trivy-scan
         run: |
+          IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
           echo "🔍 Running Trivy scan on $IMAGE_TAG..."
           trivy image \
             --format table \
@@ -108,4 +138,38 @@ jobs:
             --ignore-unfixed \
             --pkg-types os,library \
             --severity HIGH,CRITICAL \
-            "$account_name/$ecr_repo_name:$docker_image_tag" | tee trivy-results-${{ env.docker_image_tag }}.txt
+            "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
+
+  # push:
+  #   needs: scan
+  #   runs-on: self-hosted
+  #   if: success() && needs.scan.outputs.matrix != '[]'
+  #   strategy:
+  #     matrix:
+  #       config_file: ${{ fromJson(needs.scan.outputs.matrix || '[]') }}
+    
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v3
+
+  #     - name: Extract Variables from Config File
+  #       id: extract-vars
+  #       run: |
+  #         CONFIG_FILE="${{ matrix.config_file }}"
+  #         echo "Processing $CONFIG_FILE..."
+
+  #         ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
+  #         docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
+  #         account_name=$(yq eval '.account_name' "$CONFIG_FILE")
+
+  #         echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
+  #         echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
+  #         echo "account_name=$account_name" >> $GITHUB_ENV
+
+  #     - name: Push Docker Image to ECR
+  #       run: |
+  #         IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
+  #         echo "🚀 Pushing Docker image: $IMAGE_TAG"
+  #         docker push "$IMAGE_TAG"
+
+  #         echo "✅ Successfully pushed: $IMAGE_TAG"
