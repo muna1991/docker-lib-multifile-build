@@ -104,6 +104,6 @@ jobs:
         run: |
           echo "🔍 Running Trivy scan on $IMAGE_TAG..."
           echo $IMAGE_TAG
-          trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
+          trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$account_name/$ecr_repo_name:$docker_image_tag" | tee trivy-results-${{ env.docker_image_tag }}.txt
 
   
