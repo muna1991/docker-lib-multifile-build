@@ -15,7 +15,7 @@ on:
         default: "docker-config-*.yaml"
       environment:
         description: "Environment (Dev, QA, Prod)"
-        required: true
+        required: false
         type: string
 
 jobs:
