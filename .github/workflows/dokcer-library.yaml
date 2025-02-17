@@ -105,7 +105,7 @@ jobs:
           echo "matrix=$UPDATED_FILES" >> $GITHUB_OUTPUT
 
   scan:
-    needs: build
+    needs: [detect-updates, build]
     runs-on: self-hosted
     if: success() && needs.build.outputs.matrix != '[]'
     strategy:
