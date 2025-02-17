@@ -101,7 +101,6 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
 
           echo "✅ Successfully built: $IMAGE_TAG"
-
   scan:
     needs: build
     runs-on: self-hosted
@@ -109,10 +108,14 @@ jobs:
     strategy:
       matrix:
         config_file: ${{ fromJson(needs.build.outputs.matrix || '[]') }}
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Debug Matrix Value
+        run: |
+          echo "Matrix value for scan: ${{ needs.build.outputs.matrix }}"
 
       - name: Extract Variables from Config File
         id: extract-vars
@@ -140,6 +143,7 @@ jobs:
             --pkg-types os,library \
             --severity HIGH,CRITICAL \
             "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
+  
 
   # push:
   #   needs: scan
