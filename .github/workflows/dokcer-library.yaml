@@ -101,6 +101,12 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
 
           echo "✅ Successfully built: $IMAGE_TAG"
+          
+      - name: Set Output Matrix for Scan Job
+        run: |
+          # Ensure the matrix for the scan job is set properly
+          UPDATED_FILES="${{ toJson(matrix.config_file) }}"
+          echo "matrix=$UPDATED_FILES" >> $GITHUB_OUTPUT
   scan:
     needs: build
     runs-on: self-hosted
