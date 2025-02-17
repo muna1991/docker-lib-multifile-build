@@ -98,14 +98,14 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
 
           echo "✅ Successfully built: $IMAGE_TAG"
-      # - name: Run Trivy Vulnerability Scan
-      #   id: trivy-scan
-      #   run: |
-      #     echo "🔍 Running Trivy scan on $IMAGE_TAG..."
-      #     docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
-      #       --format table \  # ✅ Outputs results in tabular format
-      #       --exit-code 1 \   # ✅ Fails the pipeline if HIGH/CRITICAL vulnerabilities exist
-      #       --ignore-unfixed \  # ✅ Ignores vulnerabilities with no fix available
-      #       --pkg-types os,library \  # ✅ Scans both OS-level and application dependencies
-      #       --severity HIGH,CRITICAL \
-      #       "$account_name/$ecr_repo_name:$docker_image_tag" | tee trivy-results-${docker_image_tag}.txt
+      - name: Run Trivy Vulnerability Scan
+        id: trivy-scan
+        run: |
+          echo "🔍 Running Trivy scan on $IMAGE_TAG..."
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
+            --format table \  # ✅ Outputs results in tabular format
+            --exit-code 1 \   # ✅ Fails the pipeline if HIGH/CRITICAL vulnerabilities exist
+            --ignore-unfixed \  # ✅ Ignores vulnerabilities with no fix available
+            --pkg-types os,library \  # ✅ Scans both OS-level and application dependencies
+            --severity HIGH,CRITICAL \
+            "$account_name/$ecr_repo_name:$docker_image_tag" | tee trivy-results-${docker_image_tag}.txt
