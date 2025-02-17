@@ -54,6 +54,7 @@ jobs:
     runs-on: self-hosted
     if: needs.detect-updates.outputs.matrix != '[]'
     strategy:
+    outputs:
       matrix:
         config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
     
@@ -101,7 +102,7 @@ jobs:
           docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
 
           echo "✅ Successfully built: $IMAGE_TAG"
-          
+
       - name: Set Output Matrix for Scan Job
         run: |
           # Ensure the matrix for the scan job is set properly
