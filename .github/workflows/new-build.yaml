@@ -1,4 +1,4 @@
-name: Multi-Env Docker CI/CD
+name: Multi-Environment Docker CI/CD
 
 on:
   push:
@@ -6,51 +6,79 @@ on:
       - main
 
 jobs:
-  detect-updates:
+  detect-latest-config:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      latest_env: ${{ steps.set-latest.outputs.latest_env }}
+      latest_config: ${{ steps.set-latest.outputs.latest_config }}
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Generate Environment Matrix
-        id: set-matrix
+      - name: Detect Latest Updated Config File
+        id: detect-latest
         run: |
-          MATRIX='{"env":["dev", "qa", "uat", "prod"]}'
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          # Fetch the latest modified docker-config-*.yaml file
+          LATEST_FILE=$(git diff --name-only --diff-filter=AMCR HEAD~1 HEAD | grep "docker-config-.*\.yaml" | tail -n 1 || true)
 
-  build:
-    needs: detect-updates
+          if [[ -z "$LATEST_FILE" ]]; then
+            echo "No updated config files found!"
+            echo "latest_env=" >> $GITHUB_OUTPUT
+            echo "latest_config=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract environment name from the filename
+          ENV_NAME=$(echo "$LATEST_FILE" | sed -E 's/docker-config-(.*)\.yaml/\1/')
+
+          echo "Detected latest updated file: $LATEST_FILE"
+          echo "Environment: $ENV_NAME"
+
+          # Set outputs
+          echo "latest_env=$ENV_NAME" >> $GITHUB_OUTPUT
+          echo "latest_config=$LATEST_FILE" >> $GITHUB_OUTPUT
+
+      - name: Print Latest Updated Config Details
+        run: |
+          echo "Latest Updated Config File: ${{ steps.detect-latest.outputs.latest_config }}"
+          echo "Environment: ${{ steps.detect-latest.outputs.latest_env }}"
+
+  build-scan-push:
+    needs: detect-latest-config
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: ${{ fromJson(needs.detect-updates.outputs.matrix).env }}
+    if: needs.detect-latest-config.outputs.latest_env != ''
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Extract Config Details
+        run: |
+          CONFIG_FILE="${{ needs.detect-latest-config.outputs.latest_config }}"
+          echo "Processing config file: $CONFIG_FILE"
+
+          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
+          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
+          dockerfile_location=$(yq eval '.dockerfile_location' "$CONFIG_FILE")
+          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
+          region=$(yq eval '.region' "$CONFIG_FILE")
+
+          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
+          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
+          echo "dockerfile_location=$dockerfile_location" >> $GITHUB_ENV
+          echo "account_name=$account_name" >> $GITHUB_ENV
+          echo "region=$region" >> $GITHUB_ENV
 
       - name: Build Docker Image
         run: |
-          echo "Building image for ${{ matrix.environment }}"
-          docker build -t myrepo/${{ matrix.environment }}:latest .
+          echo "Building Docker Image for ${{ needs.detect-latest-config.outputs.latest_env }}..."
+          docker build -t ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} -f ${{ env.dockerfile_location }} .
 
-  scan:
-    needs: build
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: ${{ fromJson(needs.detect-updates.outputs.matrix).env }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Trivy Scan
+      - name: Scan Docker Image
         id: trivy_scan
-        continue-on-error: true  # Won't stop pipeline on failure
+        continue-on-error: true
         run: |
-          echo "Scanning image for ${{ matrix.environment }}"
-          trivy image myrepo/${{ matrix.environment }}:latest > scan_results.txt || true
+          echo "Scanning image for vulnerabilities..."
+          trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} > scan_results.txt || true
 
       - name: Check User Input for Approval
         run: |
@@ -61,18 +89,11 @@ jobs:
             exit 1
           fi
 
-  push:
-    needs: scan
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: ${{ fromJson(needs.detect-updates.outputs.matrix).env }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Log in to AWS ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Push Docker Image
         run: |
-          echo "Pushing image for ${{ matrix.environment }}"
-          docker tag myrepo/${{ matrix.environment }}:latest myrepo/${{ matrix.environment }}:latest
-          docker push myrepo/${{ matrix.environment }}:latest
+          echo "Pushing Image to ECR..."
+          docker tag ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} ${{ env.account_name }}.dkr.ecr.${{ env.region }}.amazonaws.com/${{ env.ecr_repo_name }}:${{ env.docker_image_tag }}
+          docker push ${{ env.account_name }}.dkr.ecr.${{ env.region }}.amazonaws.com/${{ env.ecr_repo_name }}:${{ env.docker_image_tag }}
