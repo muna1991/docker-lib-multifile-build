@@ -1,0 +1,33 @@
+name: Manual Trigger Workflow
+on:
+  workflow_dispatch:  # Adds a "Run Workflow" button in GitHub UI
+    inputs:
+      start_pipeline:
+        description: "Click to start the pipeline"
+        required: true
+        default: "no"
+        type: choice
+        options:
+          - "yes"
+          - "no"
+
+jobs:
+  wait-for-approval:
+    runs-on: test-runner
+    steps:
+      - name: Check user input
+        run: |
+          if [[ "${{ github.event.inputs.start_pipeline }}" != "yes" ]]; then
+            echo "🚫 Pipeline execution was not approved. Exiting..."
+            exit 1
+          else
+            echo "✅ Pipeline execution approved. Proceeding..."
+          fi
+
+  execute-pipeline:
+    needs: wait-for-approval
+    runs-on: test-runner
+    steps:
+      - name: Run Your CI/CD Steps
+        run: |
+          echo "🚀 Running the pipeline..."
