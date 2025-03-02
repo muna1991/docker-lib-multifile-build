@@ -1,34 +1,45 @@
-name: Manual Trigger Workflow
-on:  
-  workflow_dispatch:  # Adds a "Run Workflow" button in GitHub UI
-    inputs:
-      start_pipeline:
-        description: "Click to start the pipeline"
-        required: true
-        default: "no"
-        type: choice
-        options:
-          - "yes"
-          - "no"
+name: Multi-Environment Deployment
+
+on:
+  push:
+    branches:
+      - main # Allows manual trigger
 
 jobs:
-  wait-for-approval:
-    runs-on: test-runner
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Check user input
+      - name: Define Environment Matrix
+        id: set-matrix
         run: |
-          if [[ "${{ github.event.inputs.start_pipeline }}" == "yes" ]]; then
-            echo "✅ Pipeline execution approved. Proceeding..."
-          else
-             echo "🚫 Pipeline execution was not approved. Exiting..."
-             exit 1
-          fi
+          echo '{
+            "env": ["dev", "qa"],
+            "stages": ["build", "scan", "deploy"]
+          }' > matrix.json
+          echo "matrix=$(cat matrix.json)" >> $GITHUB_OUTPUT
 
-
-  execute-pipeline:
-    needs: wait-for-approval
-    runs-on: test-runner
+  build-scan-deploy:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: 
+        env: ${{ fromJson(needs.generate-matrix.outputs.matrix).env }}
+        stage: ${{ fromJson(needs.generate-matrix.outputs.matrix).stages }}
     steps:
-      - name: Run Your CI/CD Steps
+      - name: Print Environment and Stage
         run: |
-          echo "🚀 Running the pipeline..."
+          echo "Running ${{ matrix.stage }} for ${{ matrix.env }} environment"
+          
+      - name: Build Step
+        if: matrix.stage == 'build'
+        run: echo "Building application for ${{ matrix.env }}"
+
+      - name: Scan Step
+        if: matrix.stage == 'scan'
+        run: echo "Scanning application for ${{ matrix.env }}"
+
+      - name: Deploy Step
+        if: matrix.stage == 'deploy'
+        run: echo "Deploying application for ${{ matrix.env }}"
