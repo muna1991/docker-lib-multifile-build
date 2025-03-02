@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Check user input
         run: |
-          if [[ "${{ github.event.inputs.start_pipeline }}" == "no" ]]; then
+          if [[ "${{ github.event.inputs.start_pipeline }}" != "yes" ]]; then
             echo "🚫 Pipeline execution was not approved. Exiting..."
             exit 1
           else
