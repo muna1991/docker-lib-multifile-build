@@ -1,5 +1,5 @@
 name: Manual Trigger Workflow
-on:
+on:  
   workflow_dispatch:  # Adds a "Run Workflow" button in GitHub UI
     inputs:
       start_pipeline:
@@ -22,7 +22,7 @@ jobs:
             exit 1
           else
             echo "✅ Pipeline execution approved. Proceeding..."
-          fi
+
 
   execute-pipeline:
     needs: wait-for-approval
