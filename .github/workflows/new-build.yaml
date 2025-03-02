@@ -17,11 +17,11 @@ jobs:
     steps:
       - name: Check user input
         run: |
-          if [[ "${{ github.event.inputs.start_pipeline }}" != "yes" ]]; then
-            echo "🚫 Pipeline execution was not approved. Exiting..."
-            exit 1
-          else
+          if [[ "${{ github.event.inputs.start_pipeline }}" == "yes" ]]; then
             echo "✅ Pipeline execution approved. Proceeding..."
+          else
+             echo "🚫 Pipeline execution was not approved. Exiting..."
+             exit 1
           fi
 
 
