@@ -114,41 +114,41 @@ jobs:
           echo "🔍 Running Trivy scan on $IMAGE_TAG..."
           trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
 
-  push:
-    needs: scan
-    runs-on: self-hosted
-    strategy:
-      matrix:
-        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
+  # push:
+  #   needs: scan
+  #   runs-on: self-hosted
+  #   strategy:
+  #     matrix:
+  #       config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Extract Variables from Config File
-        id: extract-vars
-        run: |
-          CONFIG_FILE="${{ matrix.config_file }}"
-          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-          region=$(yq eval '.region' "$CONFIG_FILE")
+  #     - name: Extract Variables from Config File
+  #       id: extract-vars
+  #       run: |
+  #         CONFIG_FILE="${{ matrix.config_file }}"
+  #         ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
+  #         docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
+  #         account_name=$(yq eval '.account_name' "$CONFIG_FILE")
+  #         region=$(yq eval '.region' "$CONFIG_FILE")
 
-          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "account_name=$account_name" >> $GITHUB_ENV
-          echo "region=$region" >> $GITHUB_ENV
+  #         echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
+  #         echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
+  #         echo "account_name=$account_name" >> $GITHUB_ENV
+  #         echo "region=$region" >> $GITHUB_ENV
 
-      - name: Log in to AWS ECR
-        uses: aws-actions/amazon-ecr-login@v1
+      # - name: Log in to AWS ECR
+      #   uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Push Docker Image
-        run: |
-          IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-          ECR_URI="$account_name.dkr.ecr.$region.amazonaws.com/$ecr_repo_name:$docker_image_tag"
+      # - name: Push Docker Image
+      #   run: |
+      #     IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
+      #     ECR_URI="$account_name.dkr.ecr.$region.amazonaws.com/$ecr_repo_name:$docker_image_tag"
           
-          echo "🚀 Tagging image as $ECR_URI"
-          docker tag "$IMAGE_TAG" "$ECR_URI"
+      #     echo "🚀 Tagging image as $ECR_URI"
+      #     docker tag "$IMAGE_TAG" "$ECR_URI"
           
-          echo "📤 Pushing image to ECR..."
-          docker push "$ECR_URI"
+      #     echo "📤 Pushing image to ECR..."
+      #     docker push "$ECR_URI"
