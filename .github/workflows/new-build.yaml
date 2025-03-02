@@ -1,40 +1,78 @@
-name: Multi-Environment Deployment
+name: Multi-Env Docker CI/CD
 
 on:
   push:
     branches:
-      - main  # Allows manual trigger
+      - main
 
 jobs:
-  generate-matrix:
+  detect-updates:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Define Environment Matrix
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Environment Matrix
         id: set-matrix
         run: |
-          MATRIX_JSON='{"env":["dev","qa"],"stages":["build","scan","deploy"]}'
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_ENV
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          MATRIX='{"env":["dev", "qa", "uat", "prod"]}'
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
-  build-scan-deploy:
-    needs: generate-matrix
+  build:
+    needs: detect-updates
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      matrix:
+        environment: ${{ fromJson(needs.detect-updates.outputs.matrix).env }}
     steps:
-      - name: Print Environment and Stage
-        run: echo "Running ${{ matrix.stage }} for ${{ matrix.env }} environment"
-          
-      - name: Build Step
-        if: matrix.stage == 'build'
-        run: echo "Building application for ${{ matrix.env }}"
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Scan Step
-        if: matrix.stage == 'scan'
-        run: echo "Scanning application for ${{ matrix.env }}"
+      - name: Build Docker Image
+        run: |
+          echo "Building image for ${{ matrix.environment }}"
+          docker build -t myrepo/${{ matrix.environment }}:latest .
 
-      - name: Deploy Step
-        if: matrix.stage == 'deploy'
-        run: echo "Deploying application for ${{ matrix.env }}"
+  scan:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ fromJson(needs.detect-updates.outputs.matrix).env }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy Scan
+        id: trivy_scan
+        continue-on-error: true  # Won't stop pipeline on failure
+        run: |
+          echo "Scanning image for ${{ matrix.environment }}"
+          trivy image myrepo/${{ matrix.environment }}:latest > scan_results.txt || true
+
+      - name: Check User Input for Approval
+        run: |
+          if [[ "${{ env.skip_vulnerability }}" == "true" ]]; then
+            echo "Skipping vulnerability check based on user input."
+          elif grep -q "HIGH\|CRITICAL" scan_results.txt; then
+            echo "Vulnerabilities found! Exiting."
+            exit 1
+          fi
+
+  push:
+    needs: scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: ${{ fromJson(needs.detect-updates.outputs.matrix).env }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Push Docker Image
+        run: |
+          echo "Pushing image for ${{ matrix.environment }}"
+          docker tag myrepo/${{ matrix.environment }}:latest myrepo/${{ matrix.environment }}:latest
+          docker push myrepo/${{ matrix.environment }}:latest
