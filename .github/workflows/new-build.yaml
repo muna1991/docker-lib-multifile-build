@@ -9,17 +9,27 @@ jobs:
   detect-latest-config:
     runs-on: ubuntu-latest
     outputs:
-      latest_env: ${{ steps.set-latest.outputs.latest_env }}
-      latest_config: ${{ steps.set-latest.outputs.latest_config }}
+      latest_env: ${{ steps.detect.outputs.latest_env }}
+      latest_config: ${{ steps.detect.outputs.latest_config }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Detect Latest Updated Config File
-        id: detect-latest
+        id: detect
         run: |
+          # Ensure we have commit history
+          git fetch --prune --unshallow || true
+
+          # Check if there is at least one previous commit
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            BASE_COMMIT="HEAD~1"
+          else
+            BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)  # Get first commit
+          fi
+
           # Fetch the latest modified docker-config-*.yaml file
-          LATEST_FILE=$(git diff --name-only --diff-filter=AMCR HEAD~1 HEAD | grep "docker-config-.*\.yaml" | tail -n 1 || true)
+          LATEST_FILE=$(git diff --name-only --diff-filter=AMCR $BASE_COMMIT HEAD | grep "docker-config-.*\.yaml" | tail -n 1 || true)
 
           if [[ -z "$LATEST_FILE" ]]; then
             echo "No updated config files found!"
@@ -37,11 +47,6 @@ jobs:
           # Set outputs
           echo "latest_env=$ENV_NAME" >> $GITHUB_OUTPUT
           echo "latest_config=$LATEST_FILE" >> $GITHUB_OUTPUT
-
-      - name: Print Latest Updated Config Details
-        run: |
-          echo "Latest Updated Config File: ${{ steps.detect-latest.outputs.latest_config }}"
-          echo "Environment: ${{ steps.detect-latest.outputs.latest_env }}"
 
   build-scan-push:
     needs: detect-latest-config
