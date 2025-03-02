@@ -3,3 +3,4 @@ docker_image_tag: v1
 dockerfile_location: ./Dockerfile
 account_name: dev
 region: us-west-2
+skip_vulnerability_check: no
