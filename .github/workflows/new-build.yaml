@@ -3,7 +3,7 @@ name: Multi-Environment Deployment
 on:
   push:
     branches:
-      - main # Allows manual trigger
+      - main  # Allows manual trigger
 
 jobs:
   generate-matrix:
@@ -14,23 +14,18 @@ jobs:
       - name: Define Environment Matrix
         id: set-matrix
         run: |
-          echo '{
-            "env": ["dev", "qa"],
-            "stages": ["build", "scan", "deploy"]
-          }' > matrix.json
-          echo "matrix=$(cat matrix.json)" >> $GITHUB_OUTPUT
+          MATRIX_JSON='{"env":["dev","qa"],"stages":["build","scan","deploy"]}'
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_ENV
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
 
   build-scan-deploy:
     needs: generate-matrix
     runs-on: ubuntu-latest
     strategy:
-      matrix: 
-        env: ${{ fromJson(needs.generate-matrix.outputs.matrix).env }}
-        stage: ${{ fromJson(needs.generate-matrix.outputs.matrix).stages }}
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - name: Print Environment and Stage
-        run: |
-          echo "Running ${{ matrix.stage }} for ${{ matrix.env }} environment"
+        run: echo "Running ${{ matrix.stage }} for ${{ matrix.env }} environment"
           
       - name: Build Step
         if: matrix.stage == 'build'
