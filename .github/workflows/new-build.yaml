@@ -1,104 +1,104 @@
-name: Multi-Environment Docker CI/CD
+# name: Multi-Environment Docker CI/CD
 
-on:
-  push:
-    branches:
-      - main
+# on:
+#   push:
+#     branches:
+#       - main
 
-jobs:
-  detect-latest-config:
-    runs-on: ubuntu-latest
-    outputs:
-      latest_env: ${{ steps.detect.outputs.latest_env }}
-      latest_config: ${{ steps.detect.outputs.latest_config }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+# jobs:
+#   detect-latest-config:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       latest_env: ${{ steps.detect.outputs.latest_env }}
+#       latest_config: ${{ steps.detect.outputs.latest_config }}
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
 
-      - name: Detect Latest Updated Config File
-        id: detect
-        run: |
-          # Ensure we have commit history
-          git fetch --prune --unshallow || true
+#       - name: Detect Latest Updated Config File
+#         id: detect
+#         run: |
+#           # Ensure we have commit history
+#           git fetch --prune --unshallow || true
 
-          # Check if there is at least one previous commit
-          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
-            BASE_COMMIT="HEAD~1"
-          else
-            BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)  # Get first commit
-          fi
+#           # Check if there is at least one previous commit
+#           if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+#             BASE_COMMIT="HEAD~1"
+#           else
+#             BASE_COMMIT=$(git rev-list --max-parents=0 HEAD)  # Get first commit
+#           fi
 
-          # Fetch the latest modified docker-config-*.yaml file
-          LATEST_FILE=$(git diff --name-only --diff-filter=AMCR $BASE_COMMIT HEAD | grep "docker-config-.*\.yaml" | tail -n 1 || true)
+#           # Fetch the latest modified docker-config-*.yaml file
+#           LATEST_FILE=$(git diff --name-only --diff-filter=AMCR $BASE_COMMIT HEAD | grep "docker-config-.*\.yaml" | tail -n 1 || true)
 
-          if [[ -z "$LATEST_FILE" ]]; then
-            echo "No updated config files found!"
-            echo "latest_env=" >> $GITHUB_OUTPUT
-            echo "latest_config=" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+#           if [[ -z "$LATEST_FILE" ]]; then
+#             echo "No updated config files found!"
+#             echo "latest_env=" >> $GITHUB_OUTPUT
+#             echo "latest_config=" >> $GITHUB_OUTPUT
+#             exit 0
+#           fi
 
-          # Extract environment name from the filename
-          ENV_NAME=$(echo "$LATEST_FILE" | sed -E 's/docker-config-(.*)\.yaml/\1/')
+#           # Extract environment name from the filename
+#           ENV_NAME=$(echo "$LATEST_FILE" | sed -E 's/docker-config-(.*)\.yaml/\1/')
 
-          echo "Detected latest updated file: $LATEST_FILE"
-          echo "Environment: $ENV_NAME"
+#           echo "Detected latest updated file: $LATEST_FILE"
+#           echo "Environment: $ENV_NAME"
 
-          # Set outputs
-          echo "latest_env=$ENV_NAME" >> $GITHUB_OUTPUT
-          echo "latest_config=$LATEST_FILE" >> $GITHUB_OUTPUT
+#           # Set outputs
+#           echo "latest_env=$ENV_NAME" >> $GITHUB_OUTPUT
+#           echo "latest_config=$LATEST_FILE" >> $GITHUB_OUTPUT
 
-  build-scan-push:
-    needs: detect-latest-config
-    runs-on: ubuntu-latest
-    if: needs.detect-latest-config.outputs.latest_env != ''
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+#   build-scan-push:
+#     needs: detect-latest-config
+#     runs-on: ubuntu-latest
+#     if: needs.detect-latest-config.outputs.latest_env != ''
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
 
-      - name: Extract Config Details
-        run: |
-          CONFIG_FILE="${{ needs.detect-latest-config.outputs.latest_config }}"
-          echo "Processing config file: $CONFIG_FILE"
+#       - name: Extract Config Details
+#         run: |
+#           CONFIG_FILE="${{ needs.detect-latest-config.outputs.latest_config }}"
+#           echo "Processing config file: $CONFIG_FILE"
 
-          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-          dockerfile_location=$(yq eval '.dockerfile_location' "$CONFIG_FILE")
-          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-          region=$(yq eval '.region' "$CONFIG_FILE")
+#           ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
+#           docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
+#           dockerfile_location=$(yq eval '.dockerfile_location' "$CONFIG_FILE")
+#           account_name=$(yq eval '.account_name' "$CONFIG_FILE")
+#           region=$(yq eval '.region' "$CONFIG_FILE")
 
-          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "dockerfile_location=$dockerfile_location" >> $GITHUB_ENV
-          echo "account_name=$account_name" >> $GITHUB_ENV
-          echo "region=$region" >> $GITHUB_ENV
+#           echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
+#           echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
+#           echo "dockerfile_location=$dockerfile_location" >> $GITHUB_ENV
+#           echo "account_name=$account_name" >> $GITHUB_ENV
+#           echo "region=$region" >> $GITHUB_ENV
 
-      - name: Build Docker Image
-        run: |
-          echo "Building Docker Image for ${{ needs.detect-latest-config.outputs.latest_env }}..."
-          docker build -t ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} -f ${{ env.dockerfile_location }} .
+#       - name: Build Docker Image
+#         run: |
+#           echo "Building Docker Image for ${{ needs.detect-latest-config.outputs.latest_env }}..."
+#           docker build -t ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} -f ${{ env.dockerfile_location }} .
 
-      - name: Scan Docker Image
-        id: trivy_scan
-        continue-on-error: true
-        run: |
-          echo "Scanning image for vulnerabilities..."
-          trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} > scan_results.txt || true
+#       - name: Scan Docker Image
+#         id: trivy_scan
+#         continue-on-error: true
+#         run: |
+#           echo "Scanning image for vulnerabilities..."
+#           trivy image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} > scan_results.txt || true
 
-      - name: Check User Input for Approval
-        run: |
-          if [[ "${{ env.skip_vulnerability }}" == "true" ]]; then
-            echo "Skipping vulnerability check based on user input."
-          elif grep -q "HIGH\|CRITICAL" scan_results.txt; then
-            echo "Vulnerabilities found! Exiting."
-            exit 1
-          fi
+#       - name: Check User Input for Approval
+#         run: |
+#           if [[ "${{ env.skip_vulnerability }}" == "true" ]]; then
+#             echo "Skipping vulnerability check based on user input."
+#           elif grep -q "HIGH\|CRITICAL" scan_results.txt; then
+#             echo "Vulnerabilities found! Exiting."
+#             exit 1
+#           fi
 
-      - name: Log in to AWS ECR
-        uses: aws-actions/amazon-ecr-login@v1
+#       - name: Log in to AWS ECR
+#         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Push Docker Image
-        run: |
-          echo "Pushing Image to ECR..."
-          docker tag ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} ${{ env.account_name }}.dkr.ecr.${{ env.region }}.amazonaws.com/${{ env.ecr_repo_name }}:${{ env.docker_image_tag }}
-          docker push ${{ env.account_name }}.dkr.ecr.${{ env.region }}.amazonaws.com/${{ env.ecr_repo_name }}:${{ env.docker_image_tag }}
+#       - name: Push Docker Image
+#         run: |
+#           echo "Pushing Image to ECR..."
+#           docker tag ${{ env.ecr_repo_name }}:${{ env.docker_image_tag }} ${{ env.account_name }}.dkr.ecr.${{ env.region }}.amazonaws.com/${{ env.ecr_repo_name }}:${{ env.docker_image_tag }}
+#           docker push ${{ env.account_name }}.dkr.ecr.${{ env.region }}.amazonaws.com/${{ env.ecr_repo_name }}:${{ env.docker_image_tag }}

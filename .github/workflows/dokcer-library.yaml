@@ -86,7 +86,7 @@ jobs:
           echo "✅ Successfully built: $IMAGE_TAG"
 
   scan:
-    needs: build
+    needs: [detect-updates, build]
     runs-on: self-hosted
     strategy:
       matrix:
