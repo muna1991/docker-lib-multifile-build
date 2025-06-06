@@ -1,9 +1,13 @@
 name: Build, Scan, and Push Docker Images (Reusable)
 
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches:
       - main
+    paths:
+      - "docker-config-*.yaml"
+  workflow_dispatch:
 
 jobs:
   detect-updates:
@@ -11,28 +15,24 @@ jobs:
     outputs:
       matrix: ${{ steps.detect-configs.outputs.matrix }}
     steps:
-      - name: Checkout code
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Detect updated docker-config files
+      - name: Detect updated docker-config files in PR
         id: detect-configs
-        run: |
-          BEFORE_COMMIT=${{ github.event.before }}
-          CURRENT_COMMIT=${{ github.sha }}
-
-          echo "Comparing changes between $BEFORE_COMMIT and $CURRENT_COMMIT"
-
-          UPDATED_FILES=$(git diff --name-only "$BEFORE_COMMIT" "$CURRENT_COMMIT" | grep "docker-config-.*\.yaml" || true)
+        run: |  
+          BASE_BRANCH="origin/${{ github.base_ref }}"
+          git fetch origin ${{ github.base_ref }}
+          UPDATED_FILES=$(git diff --name-only --diff-filter=AMCR "$BASE_BRANCH" HEAD | grep "docker-config.*\.yaml" || true)
 
           if [[ -z "$UPDATED_FILES" ]]; then
-            echo "No docker-config files changed. Setting empty matrix."
-            echo "matrix=[]" >> $GITHUB_ENV
             echo "matrix=[]" >> $GITHUB_OUTPUT
           else
-            echo "Updated files: $UPDATED_FILES"
             JSON_ARRAY=$(echo "$UPDATED_FILES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
             echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
-          fi  
+          fi
 
   build:
     needs: detect-updates
@@ -41,7 +41,6 @@ jobs:
     strategy:
       matrix:
         config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,21 +49,11 @@ jobs:
         id: extract-vars
         run: |
           CONFIG_FILE="${{ matrix.config_file }}"
-          echo "Processing $CONFIG_FILE..."
-
           ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
           docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
           dockerfile_location=$(yq eval '.dockerfile_location' "$CONFIG_FILE")
           account_name=$(yq eval '.account_name' "$CONFIG_FILE")
           region=$(yq eval '.region' "$CONFIG_FILE")
-
-          echo "Extracted values:"
-          echo "ECR Repo: $ecr_repo_name"
-          echo "Docker Image Tag: $docker_image_tag"
-          echo "Dockerfile Location: $dockerfile_location"
-          echo "Account Name: $account_name"
-          echo "Region: $region"
-
           echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
           echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
           echo "dockerfile_location=$dockerfile_location" >> $GITHUB_ENV
@@ -86,12 +75,11 @@ jobs:
           echo "✅ Successfully built: $IMAGE_TAG"
 
   scan:
-    needs: [detect-updates, build]
+    needs: ["build", "detect-updates"]
     runs-on: self-hosted
     strategy:
       matrix:
         config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,62 +92,51 @@ jobs:
           docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
           account_name=$(yq eval '.account_name' "$CONFIG_FILE")
           skip_vulnerability_check=$(yq eval '.skip_vulnerability_check // "false"' "$CONFIG_FILE" | tr '[:upper:]' '[:lower:]')
-
           echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
           echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "skip_vulnerability_check=$skip_vulnerability_check" >> $GITHUB_ENV
           echo "account_name=$account_name" >> $GITHUB_ENV
+          echo "skip_vulnerability_check=$skip_vulnerability_check" >> $GITHUB_ENV
+
       - name: Run Trivy Vulnerability Scan
         run: |
           IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
           echo "🔍 Running Trivy scan on $IMAGE_TAG..."
-          trivy image --format table --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
+          trivy image --format table --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-$docker_image_tag.txt
           VULN_COUNT=$(trivy image --format json --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | jq '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH" or .Severity=="CRITICAL")] | length')
           echo "🛑 Detected HIGH/CRITICAL vulnerabilities: $VULN_COUNT"
-          if [[ "${{ env.skip_vulnerability_check }}" == "true" ]]; then
-            echo "⚠️ Skipping vulnerability enforcement as per user input."
+          if [[ "$skip_vulnerability_check" == "true" ]]; then
+            echo "⚠️ Skipping vulnerability enforcement."
           else
             if [[ "$VULN_COUNT" -gt 0 ]]; then
               echo "❌ Vulnerabilities found. Failing the job."
               exit 1
-            else
-              echo "✅ No HIGH/CRITICAL vulnerabilities found. Proceeding."
             fi
           fi
-  # env:
-  #   skip_vulnerability_check: "no" # Default to "no", user can override
-    
 
-      # - name: Run Trivy Vulnerability Scan
-      #   run: |
-      #     IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-      #     echo "🔍 Running Trivy scan on $IMAGE_TAG..."
-      #     trivy image --format table --exit-code 1 --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-${{ env.docker_image_tag }}.txt
+  push:
+    needs: ["scan", "detect-updates"]
+    runs-on: self-hosted
+    environment:
+      name: Push  # Manual approval is required here
+    strategy:
+      matrix:
+        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  # push:
-  #   needs: scan
-  #   runs-on: self-hosted
-  #   strategy:
-  #     matrix:
-  #       config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-
-  #     - name: Extract Variables from Config File
-  #       id: extract-vars
-  #       run: |
-  #         CONFIG_FILE="${{ matrix.config_file }}"
-  #         ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-  #         docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-  #         account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-  #         region=$(yq eval '.region' "$CONFIG_FILE")
-
-  #         echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-  #         echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-  #         echo "account_name=$account_name" >> $GITHUB_ENV
-  #         echo "region=$region" >> $GITHUB_ENV
+      - name: Extract Variables from Config File
+        id: extract-vars
+        run: |
+          CONFIG_FILE="${{ matrix.config_file }}"
+          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
+          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
+          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
+          region=$(yq eval '.region' "$CONFIG_FILE")
+          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
+          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
+          echo "account_name=$account_name" >> $GITHUB_ENV
+          echo "region=$region" >> $GITHUB_ENV
 
       # - name: Log in to AWS ECR
       #   uses: aws-actions/amazon-ecr-login@v1
@@ -168,9 +145,10 @@ jobs:
       #   run: |
       #     IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
       #     ECR_URI="$account_name.dkr.ecr.$region.amazonaws.com/$ecr_repo_name:$docker_image_tag"
-          
       #     echo "🚀 Tagging image as $ECR_URI"
       #     docker tag "$IMAGE_TAG" "$ECR_URI"
-          
       #     echo "📤 Pushing image to ECR..."
       #     docker push "$ECR_URI"
+      - name: Push Docker Image
+        run: |
+          echo "Pushing Docker images"
