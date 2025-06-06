@@ -15,16 +15,17 @@ jobs:
     outputs:
       matrix: ${{ steps.detect-configs.outputs.matrix }}
     steps:
-      - name: Checkout code
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Detect updated docker-config files
+      - name: Detect updated docker-config files in PR
         id: detect-configs
-        run: |
-          BEFORE_COMMIT=${{ github.event.before }}
-          CURRENT_COMMIT=${{ github.sha }}
-          echo "Comparing changes between $BEFORE_COMMIT and $CURRENT_COMMIT"
-          UPDATED_FILES=$(git diff --name-only "$BEFORE_COMMIT" "$CURRENT_COMMIT" | grep "docker-config-.*\.yaml" || true)
+        run: |  
+          BASE_BRANCH="origin/${{ github.base_ref }}"
+          git fetch origin ${{ github.base_ref }}
+          UPDATED_FILES=$(git diff --name-only --diff-filter=AMCR "$BASE_BRANCH" HEAD | grep "docker-config.*\.yaml" || true)
 
           if [[ -z "$UPDATED_FILES" ]]; then
             echo "matrix=[]" >> $GITHUB_OUTPUT
