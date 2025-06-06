@@ -1,16 +1,12 @@
 name: Build, Scan, and Push Docker Images (Reusable)
 
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches:
       - main
     paths:
-      - 'docker-config-*.yaml'
-      - 'Dockerfile'
-  pull_request:
-    paths:
-      - 'docker-config-*.yaml'
-      - 'Dockerfile'
+      - "docker-config-*.yaml"
   workflow_dispatch:
 
 jobs:
