@@ -54,11 +54,13 @@ jobs:
           dockerfile_location=$(yq eval '.dockerfile_location' "$CONFIG_FILE")
           account_name=$(yq eval '.account_name' "$CONFIG_FILE")
           region=$(yq eval '.region' "$CONFIG_FILE")
+          environments=$(yq eval '.environments[]' "$CONFIG_FILE")
           echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
           echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
           echo "dockerfile_location=$dockerfile_location" >> $GITHUB_ENV
           echo "account_name=$account_name" >> $GITHUB_ENV
           echo "region=$region" >> $GITHUB_ENV
+          echo "environments=$environments" >> $GITHUB_ENV
 
       - name: Validate Dockerfile Path
         run: |
@@ -116,8 +118,6 @@ jobs:
   push:
     needs: ["scan", "detect-updates"]
     runs-on: self-hosted
-    environment:
-      name: Push  # Manual approval is required here
     strategy:
       matrix:
         config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
@@ -133,22 +133,27 @@ jobs:
           docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
           account_name=$(yq eval '.account_name' "$CONFIG_FILE")
           region=$(yq eval '.region' "$CONFIG_FILE")
+          environments=$(yq eval '.environments[]' "$CONFIG_FILE")
           echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
           echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
           echo "account_name=$account_name" >> $GITHUB_ENV
           echo "region=$region" >> $GITHUB_ENV
+          echo "environments=$environments" >> $GITHUB_ENV
 
-      # - name: Log in to AWS ECR
-      #   uses: aws-actions/amazon-ecr-login@v1
+      - name: Request Push Approval Per Environment
+        run: |
+          for env in $environments; do
+            echo "🟨 Waiting for approval to push to environment: $env"
+            echo "::notice title=Manual Approval Required::Please approve push for environment: $env"
+            sleep 1  # simulate approval request
+          done
 
-      # - name: Push Docker Image
-      #   run: |
-      #     IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-      #     ECR_URI="$account_name.dkr.ecr.$region.amazonaws.com/$ecr_repo_name:$docker_image_tag"
-      #     echo "🚀 Tagging image as $ECR_URI"
-      #     docker tag "$IMAGE_TAG" "$ECR_URI"
-      #     echo "📤 Pushing image to ECR..."
-      #     docker push "$ECR_URI"
       - name: Push Docker Image
         run: |
-          echo "Pushing Docker images"
+          for env in $environments; do
+            ECR_URI="$account_name.dkr.ecr.$region.amazonaws.com/$ecr_repo_name:$docker_image_tag-$env"
+            IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
+            echo "🚀 Tagging $IMAGE_TAG as $ECR_URI"
+            docker tag "$IMAGE_TAG" "$ECR_URI"
+            echo "📤 Pushing $ECR_URI"
+          done
