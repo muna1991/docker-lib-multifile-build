@@ -10,4 +10,4 @@ on:
 
 jobs:
   build-and-push:
-    uses: muna1991/Action-Demo/main/.github/workflows/working-dir-shell.yaml@main
+    uses: muna1991/Action-Demo/.github/workflows/working-dir-shell.yaml@main
