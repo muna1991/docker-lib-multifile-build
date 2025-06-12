@@ -12,3 +12,8 @@ on:
 jobs:
   build-and-push:
     uses: muna1991/Action-Demo/.github/workflows/working-dir-shell.yaml@main
+    with:
+      # if you pass inputs to the called workflow
+    secrets: inherit
+    environment:
+      name: Release
