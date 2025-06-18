@@ -1,14 +1,26 @@
-name: Build, Scan, and Push Docker Images (Reusable)
-
+name: cicd-workflow with slack integration
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited]
-    branches:
-      - main
-    paths:
-      - "docker-config-*.yaml"
-  workflow_dispatch:
+  push:
 
 jobs:
-  build-and-push:
-    uses: muna1991/Action-Demo/.github/workflows/working-dir-shell.yaml@main
+  job1:
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+    - uses: act10ns/slack@v2
+      with:
+        status: starting
+        channel: '#docker-build'
+        message: Starting Docker Build image...
+      if: always()
+    - uses: actions/checkout@v3
+    - name: Build Docker image
+      run: |
+        echo "docker image build is sucess !!!"
+    - uses: act10ns/slack@v2
+      with:
+        channel: '#docker-build'
+        status: ${{ job.status }}
+        steps: ${{ toJson(steps) }}
+      if: always()
