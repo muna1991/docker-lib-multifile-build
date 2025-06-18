@@ -1,0 +1,15 @@
+name: "Simple Slack Notifier"
+description: "Send a basic Slack message"
+inputs:
+  slack_token:
+    description: "Slack Bot Token"
+    required: true
+  channel_id:
+    description: "Slack Channel ID"
+    required: true
+  message:
+    description: "Message to send"
+    required: true
+runs:
+  using: "node20"
+  main: "index.js"
