@@ -1,16 +1,20 @@
-name: cicd-workflow with slack integration
+name: Test Slack Action
+
 on:
   push:
 
-
 jobs:
-  notify:
-    runs-on: self-hosted
+  test:
+    runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Send Slack Message
         uses: ./.github/actions/simple-slack-action
         with:
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
-          channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-          message: "🚀 Deployment started for PR #${{ github.event.pull_request.number }}"
+          channel_id: "D091ZV57TM0"
+          message: "Hello from GitHub Actions!"
+
 

@@ -40999,15 +40999,11 @@ async function run() {
         const message = core.getInput('message');
 
         const slack = new WebClient(token);
+        await slack.chat.postMessage({ channel, text: message });
 
-        const result = await slack.chat.postMessage({
-            channel: channel,
-            text: message
-        });
-
-        core.info(`✅ Message sent to Slack (ts: ${result.ts})`);
+        console.log("✅ Message sent to Slack");
     } catch (error) {
-        core.setFailed(`❌ Slack message failed: ${error.message}`);
+        core.setFailed(`❌ Failed to send Slack message: ${error.message}`);
     }
 }
 

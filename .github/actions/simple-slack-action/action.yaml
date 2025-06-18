@@ -1,5 +1,5 @@
 name: "Simple Slack Notifier"
-description: "Send a basic Slack message"
+description: "Send a message to Slack"
 inputs:
   slack_token:
     description: "Slack Bot Token"
