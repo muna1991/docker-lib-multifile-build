@@ -1,7 +1,8 @@
 name: Build & Deploy with Slack Approval
 
 on:
-  push: 
+  push:
+    
 jobs:
   build:
     runs-on: self-hosted
