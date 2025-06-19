@@ -1,0 +1,58 @@
+name: Build & Deploy with Slack Approval
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: self-hosted
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set Image Tag
+        id: meta
+        run: echo "image_tag=backend-service:v12" >> $GITHUB_OUTPUT
+
+      - name: Send Slack Approval Request
+        uses: ./.github/actions/send-approval-slack
+        with:
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
+          image_tag: backend-service:v12
+
+  wait_for_approval:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Wait for Slack Approval
+        run: |
+          for i in {1..30}; do
+            decision=$(aws dynamodb get-item \
+              --table-name SlackApprovals \
+              --key '{"image_tag":{"S":"backend-service:v12"}}' \
+              --query 'Item.decision.S' \
+              --output text)
+
+            echo "Decision: $decision"
+
+            if [[ "$decision" == "approve" ]]; then
+              echo "Approved"
+              exit 0
+            elif [[ "$decision" == "reject" ]]; then
+              echo "Rejected"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for approval"
+          exit 1
+
+  push:
+    needs: wait_for_approval
+    runs-on: self-hosted
+    steps:
+      - name: Push Docker Image
+        run: echo "Push backend-service:v12 to ECR..."
