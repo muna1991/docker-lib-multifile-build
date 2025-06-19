@@ -26,8 +26,11 @@ jobs:
   wait_for_approval:
     needs: build
     runs-on: self-hosted
+    outputs:
+      decision: ${{ steps.get_decision.outputs.decision }}
     steps:
-      - name: Wait for Slack Approval
+      - name: Poll Slack Decision
+        id: get_decision
         run: |
           for i in {1..30}; do
             decision=$(aws dynamodb query \
@@ -37,23 +40,31 @@ jobs:
               --query 'Items[0].decision.S' \
               --output text 2>/dev/null)
 
-            echo "Decision: $decision"
+            echo "Polled Decision: $decision"
 
-            if [[ "$decision" == "approve" ]]; then
-              echo "Approved"
+            if [[ "$decision" == "approve" || "$decision" == "reject" ]]; then
+              echo "decision=$decision" >> $GITHUB_OUTPUT
               exit 0
-            elif [[ "$decision" == "reject" ]]; then
-              echo "Rejected"
-              exit 1
             fi
             sleep 10
           done
-          echo "Timed out waiting for approval"
+
+          echo "❌ Timed out waiting for approval"
+          echo "decision=timeout" >> $GITHUB_OUTPUT
           exit 1
 
   push:
     needs: wait_for_approval
+    if: needs.wait_for_approval.outputs.decision == 'approve'
     runs-on: self-hosted
     steps:
       - name: Push Docker Image
-        run: echo "Push backend-service:v12 to ECR..."
+        run: echo "✅ Image approved. Pushing to ECR..."
+
+  reject_handler:
+    needs: wait_for_approval
+    if: needs.wait_for_approval.outputs.decision == 'reject'
+    runs-on: self-hosted
+    steps:
+      - name: Stop Deployment
+        run: echo "❌ Deployment rejected by Slack."
