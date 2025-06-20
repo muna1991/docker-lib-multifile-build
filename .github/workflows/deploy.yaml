@@ -28,29 +28,30 @@ jobs:
     outputs:
       status: ${{ steps.get_decision.outputs.status }}
     steps:
-      - name: Get Slack Approval Status
-        id: get_decision
+      - name: Fetch approval status from DynamoDB
         run: |
-          set -e
-          AWS_REGION=us-west-2
-          image_tag="backend-service:v12"
-          table="SlackApprovals"
-          region="us-west-2"
-          echo "🔍 Getting approval status from DynamoDB for $image_tag / $decision_key"
-          result=$(aws dynamodb get-item \
-          --table-name "$table" \
-          --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "'"$decision_key"'"}}' \
-          --region "$region" \
-          --output json 2>/dev/null || echo "{}")
+            set -e
+            AWS_REGION=us-west-2
+            image_tag="backend-service:v12"
+            table="SlackApprovals"
+            region="us-west-2"
+            decision_key="latest"  # ✅ Make sure this matches what's in your table
 
-          echo "$result" | jq .
+            echo "🔍 Getting approval status from DynamoDB for $image_tag / $decision_key"
 
-          # Extract status value (if present)
-          status=$(echo "$result" | jq -r '.Item.status.S // "none"')
+            result=$(aws dynamodb get-item \
+            --table-name "$table" \
+            --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "'"$decision_key"'"}}' \
+            --region "$region" \
+            --output json 2>/dev/null || echo "{}")
 
-          echo "📦 Retrieved status: $status"
+            echo "$result" | jq .
 
-          echo "status=$status" >> "$GITHUB_OUTPUT"
+            status=$(echo "$result" | jq -r '.Item.status.S // "none"')
+
+            echo "📦 Retrieved status: $status"
+
+            echo "status=$status" >> "$GITHUB_OUTPUT"
         shell: bash
   push:
     needs: wait_for_approval
