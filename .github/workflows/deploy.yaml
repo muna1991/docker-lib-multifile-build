@@ -32,11 +32,13 @@ jobs:
       - name: Poll Slack Decision
         id: get_decision
         run: |
+          image_tag="backend-service:v12"  # 👈 Match what was sent to Slack and DynamoDB
+
           for i in {1..30}; do
             decision=$(aws dynamodb query \
               --table-name SlackApprovals \
               --key-condition-expression "image_tag = :tag" \
-              --expression-attribute-values '{":tag":{"S":"backend-service:v12"}}' \
+              --expression-attribute-values '{"\:tag":{"S":"'"$image_tag"'"}}' \
               --query 'Items[0].decision.S' \
               --output text 2>/dev/null)
 
