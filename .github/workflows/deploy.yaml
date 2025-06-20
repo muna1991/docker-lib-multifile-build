@@ -55,18 +55,18 @@ jobs:
 
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
 
-#   push:
-#     needs: wait_for_approval
-#     if: needs.wait_for_approval.outputs.status == 'approve'
-#     runs-on: self-hosted
-#     steps:
-#       - name: Push Docker Image
-#         run: echo "✅ Image approved. Pushing to ECR..."
+  push:
+    needs: wait_for_approval
+    if: needs.wait_for_approval.outputs.status == 'approve'
+    runs-on: self-hosted
+    steps:
+      - name: Push Docker Image
+        run: echo "✅ Image approved. Pushing to ECR..."
 
-#   reject_handler:
-#     needs: wait_for_approval
-#     if: needs.wait_for_approval.outputs.status == 'reject'
-#     runs-on: self-hosted
-#     steps:
-#       - name: Stop Deployment
-#         run: echo "❌ Deployment rejected by Slack."
+  reject_handler:
+    needs: wait_for_approval
+    if: needs.wait_for_approval.outputs.status == 'reject'
+    runs-on: self-hosted
+    steps:
+      - name: Stop Deployment
+        run: echo "❌ Deployment rejected by Slack."
