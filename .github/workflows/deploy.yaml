@@ -33,9 +33,6 @@ jobs:
         id: get_decision
         run: |
           set -e
-          export AWS_ACCESS_KEY_ID="ASIA6AMVTQ6V65EG3ECT"
-          export AWS_SECRET_ACCESS_KEY="IXR0yfwiCKr5/nHZl59+t1xV0MWNi0A9QgSGqKHb"
-          export AWS_SESSION_TOKEN="IQoJb3JpZ2luX2VjEM///////////wEaCXVzLXdlc3QtMiJGMEQCIFPK9Csz9VH0Y8dUvkkrSHgW4op0/dg6w+6mygcsuBNxAiBR4ZR4b4e+LJNCWgLVFB9Ho6ANFluCHyJ+cyBiwPOPAyqbAwi4//////////8BEAAaDDk2MjkyMzMwMDc3OSIMVrZbUpi/Qqm/6B00Ku8CzD+PCaqYn6ijCvkDRsP3YE4obhLfEAZdLfN9jaUMjE9KmCl/ez6n4y0hy6S5mnMp0hgMpd+DeLdXIUe+r5A+divlmZQrrWz5tM5abCs2736LM+r9ifyooflngHclGWuugY1UeOXrkjt4LvlCZXZ4Vb0Mr4HlqsRT0nJpDuRVWg25mypAlr/txvu2q1FpBQAcdm243mkq0UvftI6zYxP40bPXoBD0o5mm9LfNaO+zRBW5suXuZZHcCg4CzBVeEGmzH1qJypJe+8CrU1872Ii1yJeK6SNwKQ9SfRLkme2BpnC7O/bHErRtxrYcAlp2WZGZTPm9cVE5kxfyzWiX3VYfC0NxqAoxU+ow7KlIuXj2+BHm6tqGPykG5l5v3kNvYjoLdsaJmc4WrQ4Pi/bgPZbfmlDI2QRem45NyZ9S48gqJBRR0JBHxQ0yIoSEdUcMkrL3JN3r0fFFpI24P31Ie087NxlGZZhiJw4K9uvPvh53ezD7/tPCBjqnASroFP2CEw9ON8sSJUsaIXiwDKYx7KJIdw3IGYvwVBdDf8nF6BW+KDSSarg+tk3RC+3AIfPiikHhYcw0Mob1jIxq7C5a3RKc8vRFWWj5cQPtrnHA7HIEtM2lO3taQXQfEL/7OqhHTw2GQv0vZkIxoGoUkcalkyhDMKV3ZkrO6UeKZ+NY8Oq149XoeZGVhh7jcazQhNZUl9kSBbSSCt/HmWuWF7Rt5YF6"
           AWS_REGION=us-west-2
           image_tag="backend-service:v12"
           table="SlackApprovals"
