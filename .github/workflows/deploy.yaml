@@ -29,14 +29,6 @@ jobs:
     outputs:
       status: ${{ steps.get_decision.outputs.status }}
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # Only needed if using temporary creds
-          aws-region: us-west-2
-
       - name: Get Slack Approval Status
         id: get_decision
         run: |
