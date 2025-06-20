@@ -27,38 +27,38 @@ jobs:
     needs: build
     runs-on: self-hosted
     outputs:
-      status: ${{ steps.get_decision.outputs.status }}
+        status: ${{ steps.get_decision.outputs.status }}
     steps:
-      - name: Poll Slack Decision from DynamoDB
-        id: get_decision
-        run: |
-          image_tag="backend-service:v12"
-          region="us-west-2"
-          table="SlackApprovals"
+        - name: Poll Slack Decision from DynamoDB
+          id: get_decision
+          run: |
+            image_tag="backend-service:v12"
+            region="us-west-2"
+            table="SlackApprovals"
 
-          for i in {1..30}; do
-            echo "🔄 Polling attempt $i..."
+            for i in {1..30}; do
+            echo "🔄 Attempt $i: Checking decision for $image_tag..."
 
             result=$(aws dynamodb get-item \
-              --table-name "$table" \
-              --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "latest"}}' \
-              --region "$region")
+                --table-name "$table" \
+                --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "latest"}}' \
+                --region "$region")
 
             status=$(echo "$result" | jq -r '.Item.status.S // empty')
 
-            echo "⏱️  Fetched status: $status"
+            echo "Polled status: $status"
 
             if [[ "$status" == "approve" || "$status" == "reject" ]]; then
-              echo "status=$status" >> $GITHUB_OUTPUT
-              exit 0
+                echo "status=$status" >> $GITHUB_OUTPUT
+                exit 0
             fi
 
             sleep 10
-          done
+            done
 
-          echo "❌ Timed out waiting for decision."
-          echo "status=timeout" >> $GITHUB_OUTPUT
-          exit 1
+            echo "❌ Timed out waiting for decision"
+            echo "status=timeout" >> $GITHUB_OUTPUT
+            exit 1
 
   push:
     needs: wait_for_approval
