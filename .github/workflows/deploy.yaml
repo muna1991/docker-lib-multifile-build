@@ -2,7 +2,7 @@ name: Build & Deploy with Slack Approval
 
 on:
   push:
-    
+
 jobs:
   build:
     runs-on: self-hosted
@@ -27,37 +27,42 @@ jobs:
     needs: build
     runs-on: self-hosted
     outputs:
-      decision: ${{ steps.get_decision.outputs.decision }}
+      status: ${{ steps.get_decision.outputs.status }}
     steps:
-      - name: Poll Slack Decision
+      - name: Poll Slack Decision from DynamoDB
         id: get_decision
         run: |
-          image_tag="backend-service:v12"  # 👈 Match what was sent to Slack and DynamoDB
+          image_tag="backend-service:v12"
+          region="us-west-2"
+          table="SlackApprovals"
 
           for i in {1..30}; do
-            decision=$(aws dynamodb query \
-              --table-name SlackApprovals \
-              --key-condition-expression "image_tag = :tag" \
-              --expression-attribute-values '{"\:tag":{"S":"'"$image_tag"'"}}' \
-              --query 'Items[0].decision.S' \
-              --output text 2>/dev/null)
+            echo "🔄 Polling attempt $i..."
 
-            echo "Polled Decision: $decision"
+            result=$(aws dynamodb get-item \
+              --table-name "$table" \
+              --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "latest"}}' \
+              --region "$region")
 
-            if [[ "$decision" == "approve" || "$decision" == "reject" ]]; then
-              echo "decision=$decision" >> $GITHUB_OUTPUT
+            status=$(echo "$result" | jq -r '.Item.status.S // empty')
+
+            echo "⏱️  Fetched status: $status"
+
+            if [[ "$status" == "approve" || "$status" == "reject" ]]; then
+              echo "status=$status" >> $GITHUB_OUTPUT
               exit 0
             fi
+
             sleep 10
           done
 
-          echo "❌ Timed out waiting for approval"
-          echo "decision=timeout" >> $GITHUB_OUTPUT
+          echo "❌ Timed out waiting for decision."
+          echo "status=timeout" >> $GITHUB_OUTPUT
           exit 1
 
   push:
     needs: wait_for_approval
-    if: needs.wait_for_approval.outputs.decision == 'approve'
+    if: needs.wait_for_approval.outputs.status == 'approve'
     runs-on: self-hosted
     steps:
       - name: Push Docker Image
@@ -65,7 +70,7 @@ jobs:
 
   reject_handler:
     needs: wait_for_approval
-    if: needs.wait_for_approval.outputs.decision == 'reject'
+    if: needs.wait_for_approval.outputs.status == 'reject'
     runs-on: self-hosted
     steps:
       - name: Stop Deployment
