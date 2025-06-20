@@ -43,6 +43,7 @@ jobs:
           image_tag="backend-service:v12"
           table="SlackApprovals"
           region="us-west-2"
+          pwd
 
           echo "🔍 Checking Slack approval for $image_tag"
 
