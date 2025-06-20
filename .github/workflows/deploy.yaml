@@ -2,7 +2,7 @@ name: Build & Deploy with Slack Approval
 
 on:
   push:
-    
+
 jobs:
   build:
     runs-on: self-hosted
@@ -33,16 +33,16 @@ jobs:
           id: get_decision
           run: |
             image_tag="backend-service:v12"
-            region="us-west-2"
             table="SlackApprovals"
+            region="us-west-2"  # ✅ Define the region
 
-            echo "🔍 Checking Slack approval for $image_tag"
+            echo "🔍 Checking Slack approval for $image_tag in region $region"
 
             status=$(aws dynamodb get-item \
             --table-name "$table" \
-            --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "latest"}}' \
+            --key '{"image_tag": {"S": "'"$image_tag"'"}}' \
             --region "$region" \
-            --query 'Item.status.S' \
+            --query 'Item.decision.S' \
             --output text)
 
             echo "Status from DynamoDB: $status"
