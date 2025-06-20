@@ -2,6 +2,7 @@ name: Build & Deploy with Slack Approval
 
 on:
   push: 
+
 jobs:
   build:
     runs-on: self-hosted
@@ -29,30 +30,30 @@ jobs:
       status: ${{ steps.get_decision.outputs.status }}
     steps:
       - name: Fetch approval status from DynamoDB
+        id: get_decision
+        shell: bash
         run: |
-            set -e
-            AWS_REGION=us-west-2
-            image_tag="backend-service:v12"
-            table="SlackApprovals"
-            region="us-west-2"
-            decision_key="latest"  # ✅ Make sure this matches what's in your table
+          set -e
+          AWS_REGION="us-west-2"
+          IMAGE_TAG="backend-service:v12"
+          DECISION_KEY="latest"
+          TABLE="SlackApprovals"
 
-            echo "🔍 Getting approval status from DynamoDB for $image_tag / $decision_key"
+          echo "🔍 Getting approval status from DynamoDB for $IMAGE_TAG / $DECISION_KEY"
 
-            result=$(aws dynamodb get-item \
-            --table-name "$table" \
-            --key '{"image_tag": {"S": "'"$image_tag"'"}, "decision": {"S": "'"$decision_key"'"}}' \
-            --region "$region" \
+          result=$(aws dynamodb get-item \
+            --table-name "$TABLE" \
+            --key "{\"image_tag\": {\"S\": \"$IMAGE_TAG\"}, \"decision\": {\"S\": \"$DECISION_KEY\"}}" \
+            --region "$AWS_REGION" \
             --output json 2>/dev/null || echo "{}")
 
-            echo "$result" | jq .
+          echo "$result" | jq .
 
-            status=$(echo "$result" | jq -r '.Item.status.S // "none"')
+          STATUS=$(echo "$result" | jq -r '.Item.status.S // "none"')
+          echo "📦 Retrieved status: $STATUS"
 
-            echo "📦 Retrieved status: $status"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
 
-            echo "status=$status" >> "$GITHUB_OUTPUT"
-        shell: bash
   push:
     needs: wait_for_approval
     if: needs.wait_for_approval.outputs.status == 'approve'
