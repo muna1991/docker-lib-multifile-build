@@ -1,154 +1,20 @@
-name: Build, Scan, and Push Docker Images (Reusable)
+name: Test Slack Action
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited]
-    branches:
-      - main
-    paths:
-      - "docker-config-*.yaml"
-  workflow_dispatch:
+  push:
 
 jobs:
-  detect-updates:
-    runs-on: self-hosted
-    outputs:
-      matrix: ${{ steps.detect-configs.outputs.matrix }}
+  test:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR branch
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Send Slack Message
+        uses: ./.github/actions/simple-slack-action
         with:
-          fetch-depth: 0
+          slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
+          channel_id: "D091ZV57TM0"
+          message: "Hello from GitHub Actions!"
 
-      - name: Detect updated docker-config files in PR
-        id: detect-configs
-        run: |  
-          BASE_BRANCH="origin/${{ github.base_ref }}"
-          git fetch origin ${{ github.base_ref }}
-          UPDATED_FILES=$(git diff --name-only --diff-filter=AMCR "$BASE_BRANCH" HEAD | grep "docker-config.*\.yaml" || true)
 
-          if [[ -z "$UPDATED_FILES" ]]; then
-            echo "matrix=[]" >> $GITHUB_OUTPUT
-          else
-            JSON_ARRAY=$(echo "$UPDATED_FILES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
-            echo "matrix=$JSON_ARRAY" >> $GITHUB_OUTPUT
-          fi
-
-  build:
-    needs: detect-updates
-    runs-on: self-hosted
-    if: needs.detect-updates.outputs.matrix != '[]'
-    strategy:
-      matrix:
-        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract Variables from Config File
-        id: extract-vars
-        run: |
-          CONFIG_FILE="${{ matrix.config_file }}"
-          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-          dockerfile_location=$(yq eval '.dockerfile_location' "$CONFIG_FILE")
-          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-          region=$(yq eval '.region' "$CONFIG_FILE")
-          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "dockerfile_location=$dockerfile_location" >> $GITHUB_ENV
-          echo "account_name=$account_name" >> $GITHUB_ENV
-          echo "region=$region" >> $GITHUB_ENV
-
-      - name: Validate Dockerfile Path
-        run: |
-          if [[ ! -f "$dockerfile_location" ]]; then
-            echo "❌ Dockerfile not found at $dockerfile_location. Exiting."
-            exit 1
-          fi
-
-      - name: Build Docker Image
-        run: |
-          IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-          echo "🚀 Building Docker image: $IMAGE_TAG"
-          docker build --no-cache -t "$IMAGE_TAG" -f "$dockerfile_location" .
-          echo "✅ Successfully built: $IMAGE_TAG"
-
-  scan:
-    needs: ["build", "detect-updates"]
-    runs-on: self-hosted
-    strategy:
-      matrix:
-        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract Variables from Config File
-        id: extract-vars
-        run: |
-          CONFIG_FILE="${{ matrix.config_file }}"
-          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-          skip_vulnerability_check=$(yq eval '.skip_vulnerability_check // "false"' "$CONFIG_FILE" | tr '[:upper:]' '[:lower:]')
-          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "account_name=$account_name" >> $GITHUB_ENV
-          echo "skip_vulnerability_check=$skip_vulnerability_check" >> $GITHUB_ENV
-
-      - name: Run Trivy Vulnerability Scan
-        run: |
-          IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-          echo "🔍 Running Trivy scan on $IMAGE_TAG..."
-          trivy image --format table --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | tee trivy-results-$docker_image_tag.txt
-          VULN_COUNT=$(trivy image --format json --ignore-unfixed --pkg-types os,library --severity HIGH,CRITICAL "$IMAGE_TAG" | jq '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH" or .Severity=="CRITICAL")] | length')
-          echo "🛑 Detected HIGH/CRITICAL vulnerabilities: $VULN_COUNT"
-          if [[ "$skip_vulnerability_check" == "true" ]]; then
-            echo "⚠️ Skipping vulnerability enforcement."
-          else
-            if [[ "$VULN_COUNT" -gt 0 ]]; then
-              echo "❌ Vulnerabilities found. Failing the job."
-              exit 1
-            fi
-          fi
-
-  push:
-    needs: ["scan", "detect-updates"]
-    runs-on: self-hosted
-    environment:
-      name: Push  # Manual approval is required here
-    strategy:
-      matrix:
-        config_file: ${{ fromJson(needs.detect-updates.outputs.matrix || '[]') }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract Variables from Config File
-        id: extract-vars
-        run: |
-          CONFIG_FILE="${{ matrix.config_file }}"
-          ecr_repo_name=$(yq eval '.ecr_repo_name' "$CONFIG_FILE")
-          docker_image_tag=$(yq eval '.docker_image_tag' "$CONFIG_FILE")
-          account_name=$(yq eval '.account_name' "$CONFIG_FILE")
-          region=$(yq eval '.region' "$CONFIG_FILE")
-          echo "ecr_repo_name=$ecr_repo_name" >> $GITHUB_ENV
-          echo "docker_image_tag=$docker_image_tag" >> $GITHUB_ENV
-          echo "account_name=$account_name" >> $GITHUB_ENV
-          echo "region=$region" >> $GITHUB_ENV
-
-      # - name: Log in to AWS ECR
-      #   uses: aws-actions/amazon-ecr-login@v1
-
-      # - name: Push Docker Image
-      #   run: |
-      #     IMAGE_TAG="$account_name/$ecr_repo_name:$docker_image_tag"
-      #     ECR_URI="$account_name.dkr.ecr.$region.amazonaws.com/$ecr_repo_name:$docker_image_tag"
-      #     echo "🚀 Tagging image as $ECR_URI"
-      #     docker tag "$IMAGE_TAG" "$ECR_URI"
-      #     echo "📤 Pushing image to ECR..."
-      #     docker push "$ECR_URI"
-      - name: Push Docker Image
-        run: |
-          echo "Pushing Docker images"
