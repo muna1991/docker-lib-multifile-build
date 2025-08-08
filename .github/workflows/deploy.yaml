@@ -23,6 +23,7 @@ jobs:
           channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
           image_tag: backend-service:v12
           environment: dev
+          
   # wait_for_approval:
   #   runs-on: self-hosted
   #   needs: build
