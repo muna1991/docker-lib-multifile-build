@@ -10,9 +10,6 @@ inputs:
   image_tag:
     required: true
     description: "Docker image tag"
-  environment:
-    required: true
-    description: "Docker image tag"
 runs:
   using: "node20"
   main: "index.js"
