@@ -12,9 +12,12 @@ const slack = new WebClient(token);
 
 (async () => {
     try {
+        // Combine all important info in action_id so Lambda can split without regex
+        const actionIdBase = `${repository}|${environment}|${region}|${imageTag}`;
+
         await slack.chat.postMessage({
             channel: channel,
-            text: `✅ Image Ready for Push`, // Main header text
+            text: `✅ Image Ready for Push`,
             attachments: [
                 {
                     color: "#36a64f",
@@ -26,32 +29,21 @@ const slack = new WebClient(token);
                             name: 'approve',
                             text: 'Approve ✅',
                             type: 'button',
-                            style: 'primary',
-                            value: JSON.stringify({
-                                decision: 'approve',
-                                repository: repository,
-                                tag: imageTag,
-                                environment: environment,
-                                region: region
-                            })
+                            value: 'approve',  // decision value
+                            action_id: `${actionIdBase}`
                         },
                         {
                             name: 'reject',
                             text: 'Reject ❌',
                             type: 'button',
-                            style: 'danger',
-                            value: JSON.stringify({
-                                decision: 'reject',
-                                repository: repository,
-                                tag: imageTag,
-                                environment: environment,
-                                region: region
-                            })
+                            value: 'reject',   // decision value
+                            action_id: `${actionIdBase}`
                         }
                     ]
                 }
             ]
         });
+
         console.log("✅ Slack approval message sent successfully");
     } catch (error) {
         console.error("❌ Error sending Slack message:", error);
