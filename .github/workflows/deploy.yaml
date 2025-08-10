@@ -21,9 +21,12 @@ jobs:
         with:
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
-          image_tag: backend-service:v12
-          environment: dev
-          
+          repository: new-relic-demo
+          image_tag: v2
+          environment: ssdev
+          region: us-west-2
+
+
   # wait_for_approval:
   #   runs-on: self-hosted
   #   needs: build
