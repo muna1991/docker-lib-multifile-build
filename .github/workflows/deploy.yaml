@@ -22,10 +22,9 @@ jobs:
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
           repository: new-relic-demo
-          image_tag: v6
+          image_tag: v2
           environment: ssdev
           region: us-west-2
-
   # wait_for_approval:
   #   runs-on: self-hosted
   #   needs: build
