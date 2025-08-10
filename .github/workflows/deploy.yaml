@@ -23,7 +23,7 @@ jobs:
           channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
           repository: new-relic-demo
           image_tag: v5
-          environment: ssdev
+          environment: ssprod
           region: us-west-2
   # wait_for_approval:
   #   runs-on: self-hosted
