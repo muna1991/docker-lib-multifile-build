@@ -22,7 +22,7 @@ jobs:
           slack_token: ${{ secrets.SLACK_BOT_TOKEN }}
           channel_id: ${{ secrets.SLACK_CHANNEL_ID }}
           repository: new-relic-demo
-          image_tag: v2
+          image_tag: v3
           environment: ssdev
           region: us-west-2
 
