@@ -24,7 +24,6 @@ jobs:
           repository: new-relic-demo
           image_tag: v3
           environment: ssdev
-
   # wait_for_approval:
   #   runs-on: self-hosted
   #   needs: build

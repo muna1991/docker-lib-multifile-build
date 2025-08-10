@@ -40992,41 +40992,56 @@ var __webpack_exports__ = {};
 const core = __nccwpck_require__(4557);
 const { WebClient } = __nccwpck_require__(9558);
 
-const token = core.getInput('slack_token');
-const channel = core.getInput('channel_id');
-const imageTag = core.getInput('image_tag');
+async function run() {
+    try {
+        const token = core.getInput('slack_token');
+        const channel = core.getInput('channel_id');
+        const repository = core.getInput('repository');
+        const environment = core.getInput('environment');
+        const region = core.getInput('region');
+        const imageTag = core.getInput('image_tag');
 
-const slack = new WebClient(token);
+        const slack = new WebClient(token);
 
-(async () => {
-    await slack.chat.postMessage({
-        channel: channel,
-        text: `Docker image *${imageTag}* is ready for production push.`,
-        attachments: [
-            {
-                text: 'Approve or Reject this deployment',
-                fallback: 'Unable to approve',
-                callback_id: 'approval_action',
-                actions: [
-                    {
-                        name: 'approve',
-                        text: 'Approve ✅',
-                        type: 'button',
-                        value: 'approve',
-                        style: 'primary'
-                    },
-                    {
-                        name: 'reject',
-                        text: 'Reject ❌',
-                        type: 'button',
-                        value: 'reject',
-                        style: 'danger'
-                    }
-                ]
-            }
-        ]
-    });
-})();
+        // Button values encode all data: decision:repository:environment:region:image_tag
+        const approveValue = `approve:${repository}:${environment}:${region}:${imageTag}`;
+        const rejectValue = `reject:${repository}:${environment}:${region}:${imageTag}`;
+
+        await slack.chat.postMessage({
+            channel: channel,
+            text: `Docker image *${imageTag}* is ready for production push.`,
+            attachments: [
+                {
+                    text: 'Approve or Reject this deployment',
+                    fallback: 'Unable to approve/reject',
+                    callback_id: 'approval_action',
+                    actions: [
+                        {
+                            name: 'approve',
+                            text: 'Approve ✅',
+                            type: 'button',
+                            value: approveValue,
+                            style: 'primary'
+                        },
+                        {
+                            name: 'reject',
+                            text: 'Reject ❌',
+                            type: 'button',
+                            value: rejectValue,
+                            style: 'danger'
+                        }
+                    ]
+                }
+            ]
+        });
+
+        console.log('Slack approval message sent successfully');
+    } catch (error) {
+        core.setFailed(`Error sending Slack message: ${error.message}`);
+    }
+}
+
+run();
 
 module.exports = __webpack_exports__;
 /******/ })()
