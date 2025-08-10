@@ -12,13 +12,17 @@ const slack = new WebClient(token);
 
 (async () => {
     try {
+        // Value format: decision:repository:environment:region:imageTag
+        const approveValue = `approve:${repository}:${environment}:${region}:${imageTag}`;
+        const rejectValue = `reject:${repository}:${environment}:${region}:${imageTag}`;
+
         await slack.chat.postMessage({
             channel: channel,
             text: `✅ Image Ready for Push`,
             attachments: [
                 {
                     color: "#36a64f",
-                    text: `Repository: ${repository}\nTag: ${imageTag}\nEnvironment: ${environment}\nRegion: ${region}\n\nDocker image *${repository}:${imageTag}* is ready for push. Approve or Reject this deployment.`,
+                    text: `Repository: ${repository}\nTag: ${imageTag}\nEnvironment: ${environment}\nRegion: ${region}\n\nDocker image ${repository}:${imageTag} is ready for push. Approve or Reject this deployment.`,
                     fallback: 'Unable to approve or reject deployment',
                     callback_id: 'approval_action',
                     actions: [
@@ -26,15 +30,15 @@ const slack = new WebClient(token);
                             name: 'approve',
                             text: 'Approve ✅',
                             type: 'button',
-                            style: 'primary',
-                            value: `approve:${repository}:${environment}:${region}:${imageTag}`
+                            value: approveValue,
+                            style: 'primary'
                         },
                         {
                             name: 'reject',
                             text: 'Reject ❌',
                             type: 'button',
-                            style: 'danger',
-                            value: `reject:${repository}:${environment}:${region}:${imageTag}`
+                            value: rejectValue,
+                            style: 'danger'
                         }
                     ]
                 }
