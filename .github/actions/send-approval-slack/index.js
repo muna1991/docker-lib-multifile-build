@@ -18,7 +18,7 @@ const slack = new WebClient(token);
             attachments: [
                 {
                     color: "#36a64f",
-                    text: `Repository: ${repository}\nTag: ${imageTag}\nEnvironment: ${environment}\nRegion: ${region}\n\nDocker image ${repository} and ${imageTag} is ready for push. Approve or Reject this deployment.`,
+                    text: `Repository: ${repository}\nTag: ${imageTag}\nEnvironment: ${environment}\nRegion: ${region}\n\nDocker image ${repository}:${imageTag} is ready for push. Approve or Reject this deployment.`,
                     fallback: 'Unable to approve or reject deployment',
                     callback_id: 'approval_action',
                     actions: [
@@ -26,15 +26,27 @@ const slack = new WebClient(token);
                             name: 'approve',
                             text: 'Approve ✅',
                             type: 'button',
-                            value: 'approve',
-                            style: 'primary'
+                            style: 'primary',
+                            value: JSON.stringify({
+                                decision: 'approve',
+                                repository: repository,
+                                tag: imageTag,
+                                environment: environment,
+                                region: region
+                            })
                         },
                         {
                             name: 'reject',
                             text: 'Reject ❌',
                             type: 'button',
-                            value: 'reject',
-                            style: 'danger'
+                            style: 'danger',
+                            value: JSON.stringify({
+                                decision: 'reject',
+                                repository: repository,
+                                tag: imageTag,
+                                environment: environment,
+                                region: region
+                            })
                         }
                     ]
                 }
@@ -46,4 +58,3 @@ const slack = new WebClient(token);
         process.exit(1);
     }
 })();
-
